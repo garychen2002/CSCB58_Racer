@@ -33,7 +33,10 @@ displayWidth: .word 256
 displayHeight: .word 256
 rowUnits: .byte 32 # displayWidth/unitWidth
 heightUnits: .byte 32 # displayWidth/unitWidth
-# each block is 8 size, 32 blocks screen 
+# each pixel block is 8 size, 32 blocks per row/column on screen 
+playerWidth: .byte 3
+playerHeight: .byte 4
+# the player is a 3x4 rectangle
 red: .word 0xff0000
 green: .word 0x00ff00
 blue: .word 0x0000ff
@@ -46,6 +49,7 @@ white: .word 0xffffff
 grey: .word 0x808080
 
 keypressAddress: .word 0xffff0000
+# check which key in address 4 after 
 wKey: .byte 119
 aKey: .byte 97 # 97
 sKey: .byte 115
@@ -70,8 +74,8 @@ defaultCarSpeed: .byte 1
 maxCarSpeed: .byte 3
 
 
-enemyCars: .space 400 #struct: x, y
-
+enemyCars: .space 400 #array of struct: current x, y positions, speed, direction (up/down)
+# plan: fill with random cars (direction according to x position) on initialization and keep respawning them?
 
 .text 
 initialize:
