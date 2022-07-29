@@ -339,7 +339,11 @@ updateCarLocationVertical:
 	lb $t2, carSpeed
 	mul $t2, $t2, -1
 	add $t1, $t1, $t2
+	ble $t1, 0, carCap # cap carY at the top of the screen
 	sb $t1, carY
+	jr $ra
+carCap:
+	sb $zero, carY
 	jr $ra
 	
 #idea
