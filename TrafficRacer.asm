@@ -56,16 +56,16 @@ sKey: .byte 115
 dKey: .byte 100
 qKey: .byte 113
 
-startingPositionX: .byte 16
-startingPositionY: .byte 16
+startingPositionX: .byte 16 # middle of screen
+startingPositionY: .byte 28 # bottom of screen + 4 pixels for car height
 
 maxCarX: .byte 32
 minCarX: .byte 0
 maxCarY: .byte 32
 minCarY: .byte 0
 
-carX: .byte 16
-carY: .byte 16
+carX: .byte 0
+carY: .byte 0
 carSpeed: .byte 1
 carLives: .byte 3
 
@@ -290,7 +290,7 @@ keypress_happened: # check all possible keys
 	beq $t8, 113, respond_to_q
 	jr $ra
 	
-respond_to_a:
+respond_to_a: # left
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	jal playerTrailPrep
@@ -300,9 +300,11 @@ respond_to_a:
 	lb $t1, carX
 	addi $t1, $t1, -1
 	sb $t1, carX
+	
+	blt $t1, 0, onCarHit
 	jr $ra
 
-respond_to_d:
+respond_to_d: # right
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	jal playerTrailPrep
@@ -312,21 +314,24 @@ respond_to_d:
 	lb $t1, carX
 	addi $t1, $t1, 1
 	sb $t1, carX
+	
+	bgt $t1, 29, onCarHit # Right boundary = 32 - 3 (rectangle width), carX measures top left
+	
 	jr $ra
 	
-respond_to_w:	
+respond_to_w:	# up
 	lb $t1, carSpeed
 	addi $t1, $t1, 1
 	sb $t1, carSpeed
 	jr $ra
 	
-respond_to_s:
+respond_to_s: #down
 	lb $t1, carSpeed
 	addi $t1, $t1, -1
 	sb $t1, carSpeed
 	jr $ra
 	
-respond_to_q:
+respond_to_q: #reset
 	j initialize
 	
 updateCarLocationVertical:
@@ -339,13 +344,32 @@ updateCarLocationVertical:
 	lb $t2, carSpeed
 	mul $t2, $t2, -1
 	add $t1, $t1, $t2
-	ble $t1, 0, carCap # cap carY at the top of the screen
+	ble $t1, 0, carCapTop # cap carY at the top of the screen
+	bgt $t1, 28, carCapBottom #cap carY at the bottom of the screen
 	sb $t1, carY
 	jr $ra
-carCap:
+carCapTop:
 	sb $zero, carY
 	jr $ra
+carCapBottom:
+	li $t0, 28 # accounting for top of car being 4 pixels
+	sb $t0, carY
+	jr $ra
+onCarHit:
+subtractLife:
+	lb $t0, carLives
+	addi $t0, $t0, -1  # subtract from lives
+	sb $t0, carLives
+	# todo: if carlives is 0, jump to game over screen
+resetCarPosition:
+	lb $t0, startingPositionX
+	sb $t0, carX
+	lb $t0, startingPositionY
+	sb $t0, carY
+onCarHitEnd:
+	jr $ra
 	
+gameOver:
 #idea
 # main loop
 # call functions
