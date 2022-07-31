@@ -77,6 +77,7 @@ maxCarSpeed: .byte 3
 
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
+enemyLength: .byte 2 # set to 4 if Hard Mode
 # enemyCar struct: byte currentX, byte currentY, byte speed, byte direction (0/1)
 # plan: fill with random cars (direction according to x position) on initialization and keep respawning them?
 # plan: have 2 cars on screen for normal mode, updating positions when offscreen, 4 cars for hard mode (faster)
