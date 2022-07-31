@@ -27,6 +27,7 @@
 
 .data
 displayAddress:      .word 0x10008000  
+
 unitHeight: .byte 8
 unitWidth: .byte 8
 displayWidth: .word 256
@@ -55,6 +56,7 @@ aKey: .byte 97 # 97
 sKey: .byte 115
 dKey: .byte 100
 qKey: .byte 113
+xKey: .byte 120
 
 startingPositionX: .byte 16 # middle of screen
 startingPositionY: .byte 28 # bottom of screen + 4 pixels for car height
@@ -74,8 +76,12 @@ defaultCarSpeed: .byte 1
 maxCarSpeed: .byte 3
 
 
-enemyCars: .space 400 #array of struct: current x, y positions, speed, direction (up/down)
+enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
+# enemyCar struct: byte currentX, byte currentY, byte speed, byte direction (0/1)
 # plan: fill with random cars (direction according to x position) on initialization and keep respawning them?
+# plan: have 2 cars on screen for normal mode, updating positions when offscreen, 4 cars for hard mode (faster)
+
+hardMode: .byte 0 # set to 1 if Hard Mode
 
 .text 
 initialize:
@@ -116,7 +122,7 @@ mainLoop:
 
 sleep1: 
 	li $v0, 32
-	li $a0, 100 #sleep for 250ms
+	li $a0, 50 #sleep for 50ms = 20fps
 	syscall
 	jr $ra
 
@@ -178,46 +184,31 @@ blackEnd:
 
 	# test to draw some yellow road strips
 yellowPrep:
-
-	add $t3, $zero, $zero
+	li $t3, 0
 	addi $t2, $t0, 56 #around middle
-	
-	lw $a0, yellow
+	lw $t1, yellow
 
 yellowLoop:
-
 	beq $t3, 32, whitePrep
-
-	move $a1, $t2
-	addi $sp, $sp, -4
-	sw $ra, ($sp) #save return address
-	jal drawPixel
-	lw $ra, ($sp) #get return address back
-	addi $sp, $sp, 4
-	
+	#drawPixel
+	sw $t1, 0($t2)
 	addi $t2, $t2, 8 # prepare second strip to the right
-	move $a1, $t2
-	
-	addi $sp, $sp, -4
-	sw $ra, ($sp)
-	jal drawPixel
-	lw $ra, ($sp)
-	addi $sp, $sp, 4
-	
+	#drawPixel
+	sw $t1, 0($t2)
 	addi $t2, $t2, 120 #new row
 	addi $t3, $t3, 1
 	j yellowLoop
 
 whitePrep:
-
-	add $t3, $zero, $zero
+	li $t3, 0
 	lw $t1, white
 	addi $t2, $t0, 28 #around the middle
 whiteLoop:
 	beq $t3, 32, playerPrep
+	#drawPixel
 	sw $t1, 0($t2)
-	addi $t2, $t2, 64 # 
-
+	addi $t2, $t2, 64 # second half
+	#drawPixel
 	sw $t1, 0($t2)
 	addi $t2, $t2, 128 #skip a row
 	addi $t3, $t3, 1
@@ -276,18 +267,20 @@ playerTrailPrep: #clean up behind us by drawing grey
 	j drawPlayer
 	
 checkInput:
-	li $t9, 0xffff0000 # 
-	lw $t8, 0($t9)
+	lw $t8, keypressAddress
+	lw $t8, 0($t8)
 	beq $t8, 1, keypress_happened #if the address has 1, a keypress happens
 	jr $ra
 
 keypress_happened: # check all possible keys
-	lw $t8, 4($t9)
+	lw $t8, keypressAddress
+	lw $t8, 4($t8) # the found key is 4 after the keypressAddress
 	beq $t8, 97, respond_to_a
 	beq $t8, 100, respond_to_d
 	beq $t8, 119, respond_to_w
 	beq $t8, 115, respond_to_s
 	beq $t8, 113, respond_to_q
+	beq $t8, 120, respond_to_x
 	jr $ra
 	
 respond_to_a: # left
@@ -333,6 +326,9 @@ respond_to_s: #down
 	
 respond_to_q: #reset
 	j initialize
+
+respond_to_x: #quit
+	j exit
 	
 updateCarLocationVertical:
 	addi $sp, $sp, -4
@@ -360,6 +356,7 @@ subtractLife:
 	lb $t0, carLives
 	addi $t0, $t0, -1  # subtract from lives
 	sb $t0, carLives
+	beq $t0, 0, gameOver
 	# todo: if carlives is 0, jump to game over screen
 resetCarPosition:
 	lb $t0, startingPositionX
@@ -370,6 +367,34 @@ onCarHitEnd:
 	jr $ra
 	
 gameOver:
+drawGameOver:
+	lw $t0, displayAddress
+	lw $t1, black
+	li $t3, 0
+	move $t2, $t0
+gameOverLoop:
+gameOverBlackLoop:
+	beq $t3, 1024, gameOverLetters # draw background before letters
+	sw $t1, 0($t2)
+	addi $t2, $t2, 4
+	addi $t3, $t3, 1
+	j gameOverBlackLoop
+gameOverLetters:
+	# WIP: for now it just goes to a black screen
+gameOverInputHandler: #loop through waiting for input
+	lw $t8, keypressAddress
+	lw $t8, 0($t8)
+	beq $t8, 1, gameOver_keypress_happened #if the address has 1, a keypress happens
+	j gameOverInputHandler
+gameOver_keypress_happened:
+	lw $t8, keypressAddress
+	lw $t8, 4($t8) # the found key is 4 after the keypressAddress
+	beq $t8, 113, respond_to_q  #can either restart
+	beq $t8, 120, respond_to_x # or exit
+	j gameOverInputHandler
+# plan: draw a black screen, some pixel text saying game over or L or win, then Q to retry or E to exit and have keyboard responses
+
+
 #idea
 # main loop
 # call functions
