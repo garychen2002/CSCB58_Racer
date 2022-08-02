@@ -73,6 +73,8 @@ carLives: .byte 3
 defaultCarLives: .byte 3
 defaultCarSpeed: .byte 1
 maxCarSpeed: .byte 3
+defaultScore: .byte 0
+score: .byte 0
 
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
@@ -93,6 +95,8 @@ initialize:
 	sb $t0, carLives
 	lb $t0, defaultCarSpeed
 	sb $t0, carSpeed
+	lb $t0, defaultScore
+	sb $t0, score
 	
 	# default enemy cars: one left, one right
 	la $t0, enemyCars
@@ -519,6 +523,12 @@ subtractLife:
 	beq $t0, 0, gameOver
 	
 resetCarPosition:
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack
+	jal playerTrailPrep #clear corpse
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+
 	lb $t0, startingPositionX
 	sb $t0, carX
 	lb $t0, startingPositionY
@@ -643,6 +653,10 @@ updateEnemyCarsY:
 	j updateEnemyCarsRedraw
 #TODO: if enemy car goes offscreen, update with a new random location, add 1 to score
 updateEnemyCarsOffscreen:
+	lb $t1, score
+	addi $t1, $t1, 1
+	sb $t1, score
+
 	li $a1, 29
 	li $v0, 42
 	li $a0, 0
