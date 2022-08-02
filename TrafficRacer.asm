@@ -367,6 +367,24 @@ drawScoreLoop:
 drawLoopExit:
 	jr $ra
 	
+undrawScorePrep:
+# bottom row undraw the pink
+	lw $t1, grey
+	add $t2, $gp, 0
+	li $t4, 31 # last row
+	mul $t4, $t4, 128
+	add $t2, $t2, $t4
+	
+	lb $t3, score
+	li $t5, 0
+	j undrawScoreLoop
+undrawScoreLoop:
+	beq $t5, $t3, drawLoopExit #exit if increment==score
+	sw $t1, 0($t2) # draw 1 grey for each score
+	addi $t2, $t2, 4 #increment
+	addi $t5, $t5, 1
+	j undrawScoreLoop
+	
 undrawLifePrep:
 	lw $t1, grey
 	# draw lives starting in the bottom left
@@ -558,6 +576,21 @@ resetCarPosition:
 	sb $t0, carX
 	lb $t0, startingPositionY
 	sb $t0, carY
+	lb $t0, defaultCarSpeed
+	sb $t0, carSpeed
+	
+	#clean score bar on collision
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack
+	jal undrawScorePrep #clear corpse
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	# reset score
+	lb $t0, defaultScore
+	sb $t0, score
+	
+
 	
 	# reset enemy cars? the old ones remain though
 	# add invincibility function probably and call it on respawn
