@@ -472,11 +472,16 @@ respond_to_x: #quit
 	j exit
 	
 updateCarLocationVertical:
+	lb $t2, carSpeed
+	beq $t2, 0, updateCarLocationEnd # dont need to update if not moving
+updateCarLocationTrail:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	jal playerTrailPrep
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
+	
+updateCarLocationValue:
 	lb $t1, carY
 	lb $t2, carSpeed
 	mul $t2, $t2, -1
@@ -484,13 +489,13 @@ updateCarLocationVertical:
 	ble $t1, 0, carCapTop # cap carY at the top of the screen
 	bgt $t1, 28, carCapBottom #cap carY at the bottom of the screen
 	sb $t1, carY
-	
+updateCarLocationRedraw:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	jal redrawPlayerPrep
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
-	
+updateCarLocationEnd:
 	jr $ra
 carCapTop:
 	sb $zero, carY
@@ -618,6 +623,8 @@ updateEnemyCarsLoop:
 	mul $t5, $t5, $t7
 	add $t4, $t4, $t5
 	
+#draw enemy trail grey
+updateEnemyCarsTrail:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	addi $sp, $sp, -4
@@ -627,21 +634,58 @@ updateEnemyCarsLoop:
 	addi $sp, $sp, 4
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
-	
+
+updateEnemyCarsY:
 	sb $t4, enemyCars+1($t6) # update y value
-	
+	blt $t4, -4, updateEnemyCarsOffscreen # disappears 4 off screen
+	bgt $t4, 32, updateEnemyCarsOffscreen
+	# screen limits
+	j updateEnemyCarsRedraw
+#TODO: if enemy car goes offscreen, update with a new random location, add 1 to score
+updateEnemyCarsOffscreen:
+	li $a1, 29
+	li $v0, 42
+	li $a0, 0
+	syscall #get a random x value from 0 to 32-3 (width) in a0
+	move $t2, $a0
+	sb $t2, enemyCars($t6)
+
+	li $a1, 2
+	li $v0, 42
+	li $a0, 0
+	syscall #get a random speed value from 1 to 3 (0 to 2, + 1)
+	move $t5, $a0
+	addi $t5, $t5, 1
+	sb $t5, enemyCars+2($t6)
+	ble $t2, 16, updateEnemyCarsOffscreenLeft
+	bge $t2, 17, updateEnemyCarsOffscreenRight
+updateEnemyCarsOffscreenLeft: # y should be 0: top to bottom
+	li $t4, 0
+	sb $t4, enemyCars+1($t6)
+	li $t7, 1 #direction 1 for down
+	sb $t7, enemyCars+3($t6)
+	j updateEnemyCarsRedraw
+updateEnemyCarsOffscreenRight: # y should be 32: bottom to top
+	li $t4, 32
+	sb $t4, enemyCars+1($t6)
+	li $t7, -1 #direction 1 for down
+	sb $t7, enemyCars+3($t6)
+	j updateEnemyCarsRedraw
+#redraw enemy
+updateEnemyCarsRedraw:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
-
 	jal redrawEnemyPrep
-
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
 	
+#loop increments
+updateEnemyCarsIncrement:
 	addi $t8, $t8, 1
 	addi $t6, $t6, 4
 	j updateEnemyCarsLoop
-	
+
+
 	
 updateEnemyCarsEnd:
 	jr $ra
