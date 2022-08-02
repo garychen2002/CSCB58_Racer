@@ -544,10 +544,12 @@ updateCarLocationEnd:
 	jr $ra
 carCapTop:
 	sb $zero, carY
+	j updateCarLocationRedraw
 	jr $ra
 carCapBottom:
 	li $t0, 28 # accounting for top of car being 4 pixels
 	sb $t0, carY
+	j updateCarLocationRedraw
 	jr $ra
 onCarHit:
 
