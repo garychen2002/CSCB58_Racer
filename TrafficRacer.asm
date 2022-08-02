@@ -41,7 +41,6 @@ playerHeight: .byte 4
 red: .word 0xff0000
 green: .word 0x00ff00
 blue: .word 0x0000ff
-blueTrail: .word 0x00004f
 yellow: .word 0xffff00
 magenta: .word 0xff00ff
 cyan: .word 0x00ffff
@@ -100,18 +99,14 @@ greyPrep: # only once at start
 	add $a2, $gp, $zero
 	add $t3, $zero, $zero # loop incrementer
 	lw $t0, displayAddress    # $t0 stores the base address for display  
-	lw $a0, grey
+	lw $t1, grey
 	lw $t2, displayAddress
-	move $a1, $t2
 greyLoop:
 	beq $t3, 1024, mainLoop
-	jal drawPixel
+	sw $t1, 0($t2)
 	addi $t2, $t2, 4
-	move $a1, $t2
 	addi $t3, $t3, 1
 	j greyLoop
-
-
 
 
 mainLoop:
@@ -127,62 +122,13 @@ sleep1:
 	syscall
 	jr $ra
 
-drawPixel:
-	# parameters: colour address (a0), pixel offset (a1)
-	sw $a0, 0($a1)
-	jr $ra
 
 drawScreen:
 
 	lw $t0, displayAddress    # $t0 stores the base address for display  
 	lw $t2, displayAddress #$t2 to store current area to draw to
-	j yellowPrep #skip black stage
+	j yellowPrep
 	
-blackPrep: #unused old code
-	add $a2, $gp, $zero
-	add $t3, $zero, $zero # loop incrementer
-
-	lw $a0, black
-	lw $t2, displayAddress
-	move $a1, $t2
-blackLoop:
-	beq $t3, 1024, yellowPrep
-	addi $sp, $sp, -4
-	sw $t2, ($sp) #save t2
-	addi $sp, $sp, -4
-	sw $ra, 0($sp) # save old return address to stack 
-	jal getPlayerAddress #obliterates t4, t5, t2
-	lw $t7, ($sp) #get player address
-	addi $sp, $sp, 4
-	lw $ra, 0($sp) # get old return address from stack
-	addi $sp, $sp, 4
-	lw $t2, ($sp) #get t2 back
-	addi $sp, $sp, 4
-	
-	lw $t5, 0($a1)
-	lw $t6, red
-
-	beq $t7, $t2, blackEnd # dont draw if on the player
-	beq $t5, $t6, blackDraw # only redraw black if it is blue (player), NOT road/yellow/white
-
-	# also check to not redraw the current carX carY positions? just trails
-	# add more colours for enemies and others
-	j blackEnd
-blackDraw:
-
-	addi $sp, $sp, -4
-	sw $ra, ($sp)
-	jal drawPixel
-	lw $ra, ($sp)
-	addi $sp, $sp, 4
-	j blackEnd
-blackEnd:
-	addi $t2, $t2, 4
-	move $a1, $t2
-	addi $t3, $t3, 1
-	j blackLoop
-	# find a better way to avoid flickering. if already, dont repaint?
-
 	# test to draw some yellow road strips
 yellowPrep:
 	li $t3, 0
@@ -253,8 +199,44 @@ drawPlayer:
 	sw $t1, 384($t2) #+128 per row
 	sw $t1, 388($t2)
 	sw $t1, 392($t2)
+	j drawLivesPrep
+
+drawLivesPrep:
+	lw $t1, green
+	# draw lives starting in the bottom left
+	add $t2, $gp, 0 #t2 = address
+	li $t4, 30 #row 30
+	mul $t4, $t4, 128 
+	add $t2, $t2, $t4
+
+	lb $t3, carLives
+	li $t5, 0 # loop incrementer
 	
+	j drawLives
+drawLives: 
+	beq $t5, $t3, drawLoopExit
+	sw $t1, 0($t2)
+	addi $t2, $t2, 4
+	addi $t5, $t5, 1
+	j drawLives
+	
+
 drawLoopExit:
+	jr $ra
+	
+undrawLifePrep:
+	lw $t1, grey
+	# draw lives starting in the bottom left
+	lb $t3, carLives
+	mul $t3, $t3, 4
+	add $t2, $gp, $t3 #t2 = address of last life
+	li $t4, 30 #row 30
+	mul $t4, $t4, 128 
+	add $t2, $t2, $t4
+
+	j undrawLife
+undrawLife: 
+	sw $t1, 0($t2)
 	jr $ra
 	
 playerTrailPrep: #clean up behind us by drawing grey
@@ -353,12 +335,19 @@ carCapBottom:
 	sb $t0, carY
 	jr $ra
 onCarHit:
+
 subtractLife:
 	lb $t0, carLives
 	addi $t0, $t0, -1  # subtract from lives
 	sb $t0, carLives
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack
+	jal undrawLifePrep
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	#todo: undraw life
 	beq $t0, 0, gameOver
-	# todo: if carlives is 0, jump to game over screen
+	
 resetCarPosition:
 	lb $t0, startingPositionX
 	sb $t0, carX
