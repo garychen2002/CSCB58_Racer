@@ -77,7 +77,7 @@ maxCarSpeed: .byte 3
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
 enemyLength: .byte 2 # set to 4 if Hard Mode
-# enemyCar struct: byte currentX, byte currentY, byte speed, byte direction (0/1)
+# enemyCar struct: byte currentX, byte currentY, byte speed, byte direction (1/-1) (down/up) (decide on spawn?)
 # plan: fill with random cars (direction according to x position) on initialization and keep respawning them?
 # plan: have 2 cars on screen for normal mode, updating positions when offscreen, 4 cars for hard mode (faster)
 
@@ -93,6 +93,27 @@ initialize:
 	sb $t0, carLives
 	lb $t0, defaultCarSpeed
 	sb $t0, carSpeed
+	
+	# default enemy cars: one left, one right
+	la $t0, enemyCars
+	li $t1, 2 # x=2
+	sb $t1, 0($t0) #save into struct 
+	li $t1, 0 # y=0
+	sb $t1, 1($t0)
+	li $t1, 1 #speed=1
+	sb $t1, 2($t0)
+	li $t1, 1 #direction=1 (down)
+	sb $t1, 3($t0)
+	# right car
+	li $t1, 26 # x=24
+	sb $t1, 4($t0) #save into struct 
+	li $t1, 28 #y=28
+	sb $t1, 5($t0)
+	li $t1, 1 #speed=1
+	sb $t1, 6($t0)
+	li $t1, -1 #direction=-1(up)
+	sb $t1, 7($t0)
+	
 
 
 greyPrep: # only once at start
@@ -112,6 +133,7 @@ greyLoop:
 mainLoop:
 	jal checkInput
 	jal updateCarLocationVertical
+	jal updateEnemyCars
 	jal drawScreen
 	jal sleep1
 	j mainLoop
@@ -134,14 +156,22 @@ yellowPrep:
 	li $t3, 0
 	addi $t2, $t0, 56 #around middle
 	lw $t1, yellow
-
+	lw $t5, grey
 yellowLoop:
 	beq $t3, 32, whitePrep
+	# redraw if grey trailed
+
+	lw $t4, 0($t2)
+	bne $t4, $t5, yellowLoop2 #do not redraw if not grey
 	#drawPixel
 	sw $t1, 0($t2)
+yellowLoop2:
 	addi $t2, $t2, 8 # prepare second strip to the right
+	lw $t4, 0($t2)
+	bne $t4, $t5, yellowLoopIncrement #do not redraw if not grey
 	#drawPixel
 	sw $t1, 0($t2)
+yellowLoopIncrement:
 	addi $t2, $t2, 120 #new row
 	addi $t3, $t3, 1
 	j yellowLoop
@@ -150,13 +180,21 @@ whitePrep:
 	li $t3, 0
 	lw $t1, white
 	addi $t2, $t0, 28 #around the middle
+	lw $t5, grey
 whiteLoop:
-	beq $t3, 32, playerPrep
+	beq $t3, 32, drawEnemyCarPrep
+	# redraw grey trails
+	lw $t4, 0($t2)
+	bne $t4, $t5, whiteLoop2
 	#drawPixel
 	sw $t1, 0($t2)
+whiteLoop2:
 	addi $t2, $t2, 64 # second half
+	lw $t4, 0($t2)
+	bne $t4, $t5, whiteLoopIncrement
 	#drawPixel
 	sw $t1, 0($t2)
+whiteLoopIncrement:
 	addi $t2, $t2, 128 #skip a row
 	addi $t3, $t3, 1
 	j whiteLoop
@@ -182,7 +220,14 @@ playerPrep:
 	lw $t2, 0($sp) # get player address from stack
 	lw $ra, 4($sp) # get old return address from stack
 	addi $sp, $sp, 8
-	j drawPlayer
+	
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawPlayer
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	j drawEnemyCarPrep
 
 drawPlayer:
 	# drawing a 3x4 rectangle guy
@@ -199,7 +244,78 @@ drawPlayer:
 	sw $t1, 384($t2) #+128 per row
 	sw $t1, 388($t2)
 	sw $t1, 392($t2)
-	j drawLivesPrep
+	jr $ra
+	
+getEnemyAddress:
+	# pass in x, y from stack pointer
+	# obliterates t4, t5, t2
+	lb $t5, 0($sp) # t4 gets X
+	lb $t4, 4($sp) # t5 gets Y
+	addi $sp, $sp, 8
+	mul $t4, $t4, 4 # need to multiply 4 for each pixel address
+	add $t2, $gp, $t4
+	mul $t5, $t5, 4
+	mul $t5, $t5, 32 #multiply by 32 for a new row
+	add $t2, $t2, $t5
+	addi $sp, $sp, -4
+	sw $t2, 0($sp) #save enemy address to stack
+
+	jr $ra
+
+	
+drawEnemyCarPrep:
+	lw $t1, red
+
+	lb $t3, enemyLength
+	li $t8, 0 # loop incrementer
+	li $t6, 0 # loop +4 for each car
+	la $t7, enemyCars
+drawEnemyCarLoop:
+	beq $t3, $t8, drawLivesPrep
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	
+	addi $sp, $sp, -4 #saving 1 byte to stack
+	lb $t4, enemyCars($t6) # enemy car X store in t4
+	sb $t4, 0($sp)
+	addi $sp, $sp, -4
+	lb $t4, enemyCars+1($t6) # enemy car Y store in t4
+	sb $t4, 0($sp)
+	
+	jal getEnemyAddress
+	
+	lw $t2, 0($sp) # get enemy address from stack
+	lw $ra, 4($sp) # get old return address from stack
+	addi $sp, $sp, 8
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawEnemyCar
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	addi $t8, $t8, 1
+	addi $t2, $t2, 4
+	addi $t6, $t6, 4
+	j drawEnemyCarLoop
+	
+	
+drawEnemyCar:
+	# drawing a 3x4 rectangle guy
+	# assumption: $t1 has colour, $t2 has the player's calculated address onscreen
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2) # first 3 blocks of a row
+	sw $t1, 128($t2) #+128 per row
+	sw $t1, 132($t2)
+	sw $t1, 136($t2)
+	sw $t1, 256($t2) #+128 per row
+	sw $t1, 260($t2)
+	sw $t1, 264($t2)
+	sw $t1, 384($t2) #+128 per row
+	sw $t1, 388($t2)
+	sw $t1, 392($t2)
+	jr $ra
 
 drawLivesPrep:
 	lw $t1, green
@@ -247,7 +363,31 @@ playerTrailPrep: #clean up behind us by drawing grey
 	lw $t2, 0($sp) # get player address from stack
 	lw $ra, 4($sp) # get old return address from stack
 	addi $sp, $sp, 8
-	j drawPlayer
+
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawPlayer
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	jr $ra
+	
+redrawPlayerPrep: 
+	lw $t1, blue
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal getPlayerAddress
+	lw $t2, 0($sp) # get player address from stack
+	lw $ra, 4($sp) # get old return address from stack
+	addi $sp, $sp, 8
+
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawPlayer
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	jr $ra
 	
 checkInput:
 	lw $t8, keypressAddress
@@ -277,6 +417,15 @@ respond_to_a: # left
 	addi $t1, $t1, -1
 	sb $t1, carX
 	
+	addi $sp, $sp, -4
+	sw $t1, 0($sp)
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal redrawPlayerPrep
+	lw $ra, 0($sp) # get old return address from stack
+	lw $t1, 4($sp)
+	addi $sp, $sp, 8
+	
 	blt $t1, 0, onCarHit
 	jr $ra
 
@@ -290,6 +439,15 @@ respond_to_d: # right
 	lb $t1, carX
 	addi $t1, $t1, 1
 	sb $t1, carX
+	
+	addi $sp, $sp, -4
+	sw $t1, 0($sp)
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal redrawPlayerPrep
+	lw $ra, 0($sp) # get old return address from stack
+	lw $t1, 4($sp)
+	addi $sp, $sp, 8
 	
 	bgt $t1, 29, onCarHit # Right boundary = 32 - 3 (rectangle width), carX measures top left
 	
@@ -326,6 +484,13 @@ updateCarLocationVertical:
 	ble $t1, 0, carCapTop # cap carY at the top of the screen
 	bgt $t1, 28, carCapBottom #cap carY at the bottom of the screen
 	sb $t1, carY
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal redrawPlayerPrep
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
 	jr $ra
 carCapTop:
 	sb $zero, carY
@@ -384,7 +549,103 @@ gameOver_keypress_happened:
 	j gameOverInputHandler
 # plan: draw a black screen, some pixel text saying game over or L or win, then Q to retry or E to exit and have keyboard responses
 
+enemyTrailPrep: #clean up behind us by drawing grey
+	lw $t1, grey
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	
+	
+	addi $sp, $sp, -4 #saving 1 byte to stack
+	lb $t4, enemyCars($t6) # enemy car X store in t4
+	sb $t4, 0($sp)
+	addi $sp, $sp, -4
+	lb $t4, enemyCars+1($t6) # enemy car Y store in t4
+	sb $t4, 0($sp)
+	
+	jal getEnemyAddress # sending enemy car x, y to getEnemyAddress
+	lw $t2, 0($sp) # get enemy address from stack
+	lw $ra, 4($sp) # get old return address from stack
+	addi $sp, $sp, 8
 
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawEnemyCar
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	jr $ra
+	
+redrawEnemyPrep: 
+	lw $t1, red
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	
+	
+	addi $sp, $sp, -4 #saving 1 byte to stack
+	lb $t4, enemyCars($t6) # enemy car X store in t4
+	sb $t4, 0($sp)
+	addi $sp, $sp, -4
+	lb $t4, enemyCars+1($t6) # enemy car Y store in t4
+	sb $t4, 0($sp)
+	
+	jal getEnemyAddress # sending enemy car x, y to getEnemyAddress
+	lw $t2, 0($sp) # get enemy address from stack
+	lw $ra, 4($sp) # get old return address from stack
+	addi $sp, $sp, 8
+
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	jal drawEnemyCar
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	jr $ra
+
+updateEnemyCars:
+	lb $t3, enemyLength # number of cars to loop through
+	li $t8, 0 # loop incrementer
+	li $t6, 0 # loop +4 for each car
+	j updateEnemyCarsLoop
+	
+	# update each car by their y value and direction and speed
+
+updateEnemyCarsLoop:
+	beq $t3, $t8, updateEnemyCarsEnd
+	lb $t2, enemyCars($t6) # get x value
+	lb $t4, enemyCars+1($t6) # get  y value
+	lb $t5, enemyCars+2($t6) # get speed
+	lb $t7, enemyCars+3($t6) # get direction
+	mul $t5, $t5, $t7
+	add $t4, $t4, $t5
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+	addi $sp, $sp, -4
+	sb $t4, 0($sp)
+	jal enemyTrailPrep
+	lb $t4, 0($sp)
+	addi $sp, $sp, 4
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	sb $t4, enemyCars+1($t6) # update y value
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp) # save old return address to stack 
+
+	jal redrawEnemyPrep
+
+	lw $ra, 0($sp) # get old return address from stack
+	addi $sp, $sp, 4
+	
+	addi $t8, $t8, 1
+	addi $t6, $t6, 4
+	j updateEnemyCarsLoop
+	
+	
+updateEnemyCarsEnd:
+	jr $ra
+	
 #idea
 # main loop
 # call functions
@@ -396,7 +657,7 @@ gameOver_keypress_happened:
 # sleep
 # repeat
 
-
+# flickering improvement: undraw the last row/column being moved?
 
 
 exit:  
