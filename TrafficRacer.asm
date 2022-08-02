@@ -97,7 +97,10 @@ initialize:
 	sb $t0, carSpeed
 	lb $t0, defaultScore
 	sb $t0, score
-	
+	jal initializeEnemyCars
+	j greyPrep
+
+initializeEnemyCars:
 	# default enemy cars: one left, one right
 	la $t0, enemyCars
 	li $t1, 2 # x=2
@@ -118,6 +121,9 @@ initialize:
 	li $t1, -1 #direction=-1(up)
 	sb $t1, 7($t0)
 	
+	# add more for hard mode
+	
+	jr $ra
 
 
 greyPrep: # only once at start
@@ -325,7 +331,7 @@ drawLivesPrep:
 	lw $t1, green
 	# draw lives starting in the bottom left
 	add $t2, $gp, 0 #t2 = address
-	li $t4, 30 #row 30
+	li $t4, 30 #row 30 (second last)
 	mul $t4, $t4, 128 
 	add $t2, $t2, $t4
 
@@ -334,13 +340,30 @@ drawLivesPrep:
 	
 	j drawLives
 drawLives: 
-	beq $t5, $t3, drawLoopExit
+	beq $t5, $t3, drawScorePrep
 	sw $t1, 0($t2)
 	addi $t2, $t2, 4
 	addi $t5, $t5, 1
 	j drawLives
 	
-
+drawScorePrep:
+# bottom row pink bar filling up
+	lw $t1, magenta
+	add $t2, $gp, 0
+	li $t4, 31 # last row
+	mul $t4, $t4, 128
+	add $t2, $t2, $t4
+	
+	lb $t3, score
+	li $t5, 0
+	j drawScoreLoop
+drawScoreLoop:
+	beq $t5, $t3, drawLoopExit #exit if increment==score
+	sw $t1, 0($t2) # draw 1 magenta for each score
+	addi $t2, $t2, 4 #increment
+	addi $t5, $t5, 1
+	j drawScoreLoop
+	
 drawLoopExit:
 	jr $ra
 	
@@ -523,16 +546,21 @@ subtractLife:
 	beq $t0, 0, gameOver
 	
 resetCarPosition:
+	# clean player corpse from screen
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack
 	jal playerTrailPrep #clear corpse
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
 
+	# reset car position
 	lb $t0, startingPositionX
 	sb $t0, carX
 	lb $t0, startingPositionY
 	sb $t0, carY
+	
+	# reset enemy cars? the old ones remain though
+	# add invincibility function probably and call it on respawn
 onCarHitEnd:
 	jr $ra
 	
@@ -570,10 +598,10 @@ enemyTrailPrep: #clean up behind us by drawing grey
 	sw $ra, 0($sp) # save old return address to stack 
 	
 	
-	addi $sp, $sp, -4 #saving 1 byte to stack
+	addi $sp, $sp, -4 #saving 1 byte to stack + padding
 	lb $t4, enemyCars($t6) # enemy car X store in t4
 	sb $t4, 0($sp)
-	addi $sp, $sp, -4
+	addi $sp, $sp, -4 # padding
 	lb $t4, enemyCars+1($t6) # enemy car Y store in t4
 	sb $t4, 0($sp)
 	
@@ -653,10 +681,11 @@ updateEnemyCarsY:
 	j updateEnemyCarsRedraw
 #TODO: if enemy car goes offscreen, update with a new random location, add 1 to score
 updateEnemyCarsOffscreen:
+	# increment score for enemy car going offscreen
 	lb $t1, score
 	addi $t1, $t1, 1
 	sb $t1, score
-
+	# randomizer
 	li $a1, 29
 	li $v0, 42
 	li $a0, 0
@@ -671,8 +700,9 @@ updateEnemyCarsOffscreen:
 	move $t5, $a0
 	addi $t5, $t5, 1
 	sb $t5, enemyCars+2($t6)
-	ble $t2, 16, updateEnemyCarsOffscreenLeft
-	bge $t2, 17, updateEnemyCarsOffscreenRight
+	# if x <= 13, make it a left side downward moving car
+	ble $t2, 15, updateEnemyCarsOffscreenLeft
+	bge $t2, 16, updateEnemyCarsOffscreenRight
 updateEnemyCarsOffscreenLeft: # y should be 0: top to bottom
 	li $t4, 0
 	sb $t4, enemyCars+1($t6)
