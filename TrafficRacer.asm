@@ -643,6 +643,82 @@ gameOverBlackLoop:
 	addi $t3, $t3, 1
 	j gameOverBlackLoop
 gameOverLetters:
+	lw $t1, white
+	move $t2, $t0
+	addi $t2, $t2, 4 #column 1
+	addi $t2, $t2, 2048 # row 16
+	# drawing a q
+	# top of o part
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2)
+	# columns
+	sw $t1, 128($t2)
+	sw $t1, 136($t2)
+	sw $t1, 256($t2)
+	# bottom of o 
+	sw $t1, 260($t2)
+	sw $t1, 264($t2)
+	# lower tail
+	sw $t1, 392($t2)
+	sw $t1, 520($t2)
+	sw $t1, 524($t2)
+	# drawing a r
+	move $t2, $t0
+	addi $t2, $t2, 40 # column 10
+	addi $t2, $t2, 2048
+	# top horizontal
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2)
+	# vertical part
+	sw $t1, 128($t2)
+	sw $t1, 256($t2)
+	sw $t1, 384($t2)
+	sw $t1, 512($t2)
+	# drawing e
+	move $t2, $t0
+	addi $t2, $t2, 56 # column 14
+	addi $t2, $t2, 2048
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2)
+	sw $t1, 128($t2)
+	sw $t1, 256($t2)
+	sw $t1, 260($t2)
+	sw $t1, 384($t2)
+	sw $t1, 512($t2)
+	sw $t1, 516($t2)
+	sw $t1, 520($t2)
+	# drawing d
+	move $t2, $t0
+	addi $t2, $t2, 72 # column 18
+	addi $t2, $t2, 2048
+	# top of d has to be horizontally right
+	sw $t1, 8($t2)
+	sw $t1, 136($t2)
+	sw $t1, 264($t2)
+	# the o part of the lower d
+	sw $t1, 260($t2)
+	sw $t1, 256($t2)
+	sw $t1, 384($t2)
+	sw $t1, 392($t2)
+	sw $t1, 512($t2)
+	sw $t1, 516($t2)
+	sw $t1, 520($t2)
+	# drawing o
+	move $t2, $t0
+	addi $t2, $t2, 88 # column 22
+	addi $t2, $t2, 2048
+	# copying o from d
+	sw $t1, 264($t2)
+	sw $t1, 260($t2)
+	sw $t1, 256($t2)
+	sw $t1, 384($t2)
+	sw $t1, 392($t2)
+	sw $t1, 512($t2)
+	sw $t1, 516($t2)
+	sw $t1, 520($t2)
 	# WIP: for now it just goes to a black screen
 gameOverInputHandler: #loop through waiting for input
 	lw $t8, keypressAddress
