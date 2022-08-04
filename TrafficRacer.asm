@@ -79,6 +79,7 @@ score: .byte 0
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
 enemyLength: .byte 2 # set to 4 if Hard Mode
+hardModeEnemyLength: .byte 4
 # enemyCar struct: byte currentX, byte currentY, byte speed, byte direction (1/-1) (down/up) (decide on spawn?)
 # plan: fill with random cars (direction according to x position) on initialization and keep respawning them?
 # plan: have 2 cars on screen for normal mode, updating positions when offscreen, 4 cars for hard mode (faster)
@@ -98,6 +99,13 @@ initialize:
 	lb $t0, defaultScore
 	sb $t0, score
 	jal initializeEnemyCars
+	lb $t0, hardMode
+	beq $t0, 1, hardModeInitialize
+	j greyPrep
+hardModeInitialize:
+	lb $t0, hardModeEnemyLength
+	sb $t0, enemyLength
+	jal initializeEnemyCarsHardMode
 	j greyPrep
 
 initializeEnemyCars:
@@ -123,6 +131,28 @@ initializeEnemyCars:
 	
 	# add more for hard mode
 	
+	jr $ra
+
+initializeEnemyCarsHardMode:
+	# add more enemy cars: one left, one right
+	la $t0, enemyCars
+	li $t1, 6 # x
+	sb $t1, 8($t0) #save into struct 
+	li $t1, 0 # y
+	sb $t1, 9($t0)
+	li $t1, 2 #speed
+	sb $t1, 10($t0)
+	li $t1, 1 #direction=1 (down)
+	sb $t1, 11($t0)
+	# right car
+	li $t1, 18 # x
+	sb $t1, 12($t0) #save into struct 
+	li $t1, 28 #y
+	sb $t1, 13($t0)
+	li $t1, 2 #speed
+	sb $t1, 14($t0)
+	li $t1, -1 #direction=-1(up)
+	sb $t1, 15($t0)
 	jr $ra
 
 
@@ -459,7 +489,7 @@ respond_to_a: # left
 	addi $sp, $sp, 4
 	
 	lb $t1, carX
-	addi $t1, $t1, -1
+	addi $t1, $t1, -2 # move x value
 	sb $t1, carX
 	
 	addi $sp, $sp, -4
@@ -482,7 +512,7 @@ respond_to_d: # right
 	addi $sp, $sp, 4
 	
 	lb $t1, carX
-	addi $t1, $t1, 1
+	addi $t1, $t1, 2 # move x value
 	sb $t1, carX
 	
 	addi $sp, $sp, -4
@@ -720,6 +750,17 @@ updateEnemyCarsOffscreen:
 	lb $t1, score
 	addi $t1, $t1, 1
 	sb $t1, score
+	lb $t0, hardMode
+	beq $t0, 0, hardModeCheck
+	bge $t1, 32, skipHardModeCheck
+	j updateEnemyCarsRandomize
+hardModeCheck:
+	bge $t1, 32, hardModeActivate # turn on hard mode at 32 score if on normal mode and reinitialize
+	j updateEnemyCarsRandomize
+skipHardModeCheck: # cap score at 32 on hard mode or end game with special screen
+	li $t1, 32
+	sb $t1, score
+updateEnemyCarsRandomize:
 	# randomizer
 	li $a1, 29
 	li $v0, 42
@@ -728,16 +769,16 @@ updateEnemyCarsOffscreen:
 	move $t2, $a0
 	sb $t2, enemyCars($t6)
 
-	li $a1, 2
+	li $a1, 1
 	li $v0, 42
 	li $a0, 0
-	syscall #get a random speed value from 1 to 3 (0 to 2, + 1)
+	syscall #get a random speed value from 1 to 2 (0 to 1, + 1)
 	move $t5, $a0
 	addi $t5, $t5, 1
 	sb $t5, enemyCars+2($t6)
-	# if x <= 13, make it a left side downward moving car
-	ble $t2, 15, updateEnemyCarsOffscreenLeft
-	bge $t2, 16, updateEnemyCarsOffscreenRight
+	# if x <= middle, make it a left side downward moving car
+	ble $t2, 14, updateEnemyCarsOffscreenLeft
+	bge $t2, 15, updateEnemyCarsOffscreenRight
 updateEnemyCarsOffscreenLeft: # y should be 0: top to bottom
 	li $t4, 0
 	sb $t4, enemyCars+1($t6)
@@ -768,6 +809,11 @@ updateEnemyCarsIncrement:
 	
 updateEnemyCarsEnd:
 	jr $ra
+	
+hardModeActivate:
+	li $t0, 1
+	sb $t0, hardMode # set hard mode flag
+	j initialize # reinitialize
 	
 #idea
 # main loop
