@@ -13,9 +13,11 @@
 # 
 # Basic features that were implemented successfully 
 # - Basic feature a/b/c (choose the ones that apply) 
+# Implemented a (life counter), b (different cars with different speed), and c (game over screen)
 # 
 # Additional features that were implemented successfully 
 # - Additional feature a/b/c (choose the ones that apply) 
+# Implemented a (pickups), b (live score bar) and c (hard mode level)
 #  
 # Link to the video demo 
 # - Insert YouTube/MyMedia/other URL here and make sure the video is accessible 
@@ -89,6 +91,13 @@ hardModeEnemyLength: .byte 4
 
 hardMode: .byte 0 # set to 1 if Hard Mode
 
+extraLifeVisible: .byte 0 # 1 if visible
+shieldVisible: .byte 0 # 1 if visible
+extraLifeX: .byte 2 # top left
+extraLifeY: .byte 2
+shieldX: .byte 30 # bottom right
+shieldY: .byte 30
+
 .text 
 initialize:
 	lb $t0, startingPositionX
@@ -105,6 +114,9 @@ initialize:
 	sb $t0, invincible
 	lb $t0, invincibleTime
 	sb $t0, invincibleCurrentTimer
+	li $t0, 0
+	sb $t0, extraLifeVisible
+	sb $t0, shieldVisible
 	jal initializeEnemyCars
 	lb $t0, hardMode
 	beq $t0, 1, hardModeInitialize
@@ -182,6 +194,7 @@ mainLoop:
 	jal updateCarLocationVertical
 	jal updateEnemyCars
 	jal detectEnemyCollision
+	jal detectItemCollision
 	jal drawScreen
 	jal sleep1
 	j mainLoop
@@ -928,13 +941,13 @@ detectEnemyCollision:
 	lb $t3, enemyLength # number of cars to loop through
 	li $t8, 0 # loop incrementer
 	li $t6, 0 # loop +4 for each car
+	lb $t5, carX # player car X
+	lb $t7, carY # player car Y
 	j detectEnemyCollisionLoop
 detectEnemyCollisionLoop:
 	bge $t8, $t3, detectEnemyCollisionEnd
 	lb $t2, enemyCars($t6) # get x value
 	lb $t4, enemyCars+1($t6) # get  y value
-	lb $t5, carX # player car X
-	lb $t7, carY # player car Y
 	# car widths: 3, car heights: 4
 	# if player Y is within 4 of enemy car and X is within 3 of enemy car 
 	# calc absolute value difference
@@ -972,7 +985,79 @@ detectEnemyCollisionIncrement:
 	j detectEnemyCollisionLoop
 detectEnemyCollisionEnd:
 	jr $ra
+	
+detectItemCollision:
+	lb $t5, carX # player car X
+	lb $t7, carY # player car Y
+detectLifeCollision:
+	lb $t0, extraLifeVisible
+	beq $t0, 0, detectShieldCollision # skip if not there
+	lb $t2, extraLifeX # get x value
+	lb $t4, extraLifeY # get  y value
+detectLifeCollisionSubtractX:
+	bge $t2, $t5, subtractLifePlayerX # life > player
+	bge $t5, $t2, subtractPlayerLifeX
+subtractLifePlayerX:
+	sub $t1, $t2, $t5 
+	j detectLifeCollisionSubtractY
+subtractPlayerLifeX:
+	sub $t1, $t5, $t2 # x diff
+	j detectLifeCollisionSubtractY
+detectLifeCollisionSubtractY:
+	bge $t4, $t7, subtractLifePlayerY # enemy > player
+	ble $t4, $t7, subtractPlayerLifeY
+subtractLifePlayerY:
+	sub $t9, $t4, $t7 # y diff
+	j detectLifeCollisionCompare
+subtractPlayerLifeY:
+	sub $t9, $t7, $t4
+	j detectLifeCollisionCompare
+detectLifeCollisionCompare:
+	# check if x within boundaries (3x3 cross)
+	bgt $t1, 2, detectShieldCollision 
+	bgt $t9, 2, detectShieldCollision
+	#if not , jump next section
+detectLifeCollisionAct:
+	lb $t0, carLives
+	addi $t0, $t0, 1  # add a life
+	sb $t0, carLives
 
+detectShieldCollision:
+	lb $t0, shieldVisible
+	beq $t0, 0, detectItemCollisionEnd #skip if not there
+	lb $t2, shieldX # get x value
+	lb $t4, shieldY # get  y value
+detectShieldCollisionSubtractX:
+	bge $t2, $t5, subtractShieldPlayerX # shield > player
+	bge $t5, $t2, subtractPlayerShieldX
+subtractShieldPlayerX:
+	sub $t1, $t2, $t5 
+	j detectShieldCollisionSubtractY
+subtractPlayerShieldX:
+	sub $t1, $t5, $t2 # x diff
+	j detectShieldCollisionSubtractY
+detectShieldCollisionSubtractY:
+	bge $t4, $t7, subtractShieldPlayerY # enemy > player
+	ble $t4, $t7, subtractPlayerShieldY
+subtractShieldPlayerY:
+	sub $t9, $t4, $t7 # y diff
+	j detectShieldCollisionCompare
+subtractPlayerShieldY:
+	sub $t9, $t7, $t4
+	j detectShieldCollisionCompare
+detectShieldCollisionCompare:
+	# check if x within boundaries (3x3 shield)
+	bgt $t1, 2, detectItemCollisionEnd 
+	bgt $t9, 2, detectItemCollisionEnd
+	# if not, jump next section
+detectShieldCollisionAct:
+	# turn on invincible flag + timer
+	li $t0, 1 # invincible
+	sb $t0, invincible
+	lb $t0, invincibleTime
+	sb $t0, invincibleCurrentTimer
+detectItemCollisionEnd:
+	jr $ra
 	
 #idea
 # main loop
