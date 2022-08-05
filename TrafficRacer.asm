@@ -798,6 +798,7 @@ gameOverInputHandler: #loop through waiting for input
 	lw $t8, keypressAddress
 	lw $t8, 0($t8)
 	beq $t8, 1, gameOver_keypress_happened #if the address has 1, a keypress happens
+	jal sleep1
 	j gameOverInputHandler
 gameOver_keypress_happened:
 	lw $t8, keypressAddress
