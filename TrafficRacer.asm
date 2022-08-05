@@ -80,7 +80,7 @@ score: .byte 0
 currentColour: .word 0xff0000 # red, can become cyan when invincible
 invincible: .byte 1 # 1 if invincible
 invincibleCurrentTimer: .byte 0
-invincibleTime: .byte 100 # 100 ticks
+invincibleTime: .byte 50 # 100 ticks
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
 enemyLength: .byte 2 # set to 4 if Hard Mode
@@ -95,8 +95,8 @@ extraLifeVisible: .byte 0 # 1 if visible
 shieldVisible: .byte 0 # 1 if visible
 extraLifeX: .byte 2 # top left
 extraLifeY: .byte 2
-shieldX: .byte 30 # bottom right
-shieldY: .byte 30
+shieldX: .byte 28 # bottom right
+shieldY: .byte 28
 
 .text 
 initialize:
@@ -244,7 +244,7 @@ whitePrep:
 	lw $t5, grey
 whiteLoop:
 	beq $t3, 32, drawEnemyCarPrep
-	# redraw grey trails
+	# redraw grey trails only; if not grey, dont draw
 	lw $t4, 0($t2)
 	bne $t4, $t5, whiteLoop2
 	#drawPixel
@@ -409,12 +409,52 @@ drawScorePrep:
 	li $t5, 0
 	j drawScoreLoop
 drawScoreLoop:
-	beq $t5, $t3, drawLoopExit #exit if increment==score
+	beq $t5, $t3, drawLifePrep #exit if increment==score
 	sw $t1, 0($t2) # draw 1 magenta for each score
 	addi $t2, $t2, 4 #increment
 	addi $t5, $t5, 1
 	j drawScoreLoop
 	
+drawLifePrep:
+	lb $t0, extraLifeVisible
+	bne $t0, 1, drawShieldPrep
+	lw $t1, green
+	add $t2, $gp, 0 #t2 = draw address
+	lb $t3, extraLifeX # calculate offsets
+	mul $t3, $t3, 4
+	lb $t4, extraLifeY
+	mul $t4, $t4, 128 # 32*4
+	add $t2, $t2, $t3
+	add $t2, $t2, $t4
+	j drawLife
+drawLife: # draw a cross
+	sw $t1, 4($t2)
+	sw $t1, 128($t2)
+	sw $t1, 132($t2)
+	sw $t1, 136($t2)
+	sw $t1, 260($t2)
+	j drawShieldPrep
+drawShieldPrep:
+	lb $t0, shieldVisible
+	bne $t0, 1, drawLoopExit
+	lw $t1, cyan
+	add $t2, $gp, 0 #t2 = draw address
+	lb $t3, shieldX # calculate offsets
+	mul $t3, $t3, 4
+	lb $t4, shieldY
+	mul $t4, $t4, 128 # 32*4
+	add $t2, $t2, $t3
+	add $t2, $t2, $t4
+	j drawShield
+drawShield: # draw a shield
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2)
+	sw $t1, 128($t2)
+	sw $t1, 132($t2)
+	sw $t1, 136($t2)
+	sw $t1, 260($t2)
+	j drawLoopExit
 drawLoopExit:
 	jr $ra
 	
@@ -436,7 +476,7 @@ undrawScoreLoop:
 	addi $t5, $t5, 1
 	j undrawScoreLoop
 	
-undrawLifePrep:
+undrawLivesPrep:
 	lw $t1, grey
 	# draw lives starting in the bottom left
 	lb $t3, carLives
@@ -446,8 +486,8 @@ undrawLifePrep:
 	mul $t4, $t4, 128 
 	add $t2, $t2, $t4
 
-	j undrawLife
-undrawLife: 
+	j undrawLives
+undrawLives: 
 	sw $t1, 0($t2)
 	jr $ra
 	
@@ -519,7 +559,7 @@ respond_to_a: # left
 	addi $sp, $sp, 4
 	
 	lb $t1, carX
-	addi $t1, $t1, -2 # move x value
+	addi $t1, $t1, -1 # move x value
 	sb $t1, carX
 	
 	addi $sp, $sp, -4
@@ -542,7 +582,7 @@ respond_to_d: # right
 	addi $sp, $sp, 4
 	
 	lb $t1, carX
-	addi $t1, $t1, 2 # move x value
+	addi $t1, $t1, 1 # move x value
 	sb $t1, carX
 	
 	addi $sp, $sp, -4
@@ -619,7 +659,7 @@ subtractLife:
 	sb $t0, carLives
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack
-	jal undrawLifePrep
+	jal undrawLivesPrep
 	lw $ra, 0($sp) # get old return address from stack
 	addi $sp, $sp, 4
 	#todo: undraw life
@@ -856,10 +896,23 @@ updateEnemyCarsY:
 	j updateEnemyCarsRedraw
 #TODO: if enemy car goes offscreen, update with a new random location, add 1 to score
 updateEnemyCarsOffscreen:
+updateScore:
 	# increment score for enemy car going offscreen
 	lb $t1, score
 	addi $t1, $t1, 1
 	sb $t1, score
+	beq $t1, 8, updateLife # spawn extra life at 8
+	beq $t1, 16, updateShield # spawn shield at 16
+	j updateScoreHardMode
+updateLife:
+	li $t0, 1
+	sb $t0, extraLifeVisible
+	j updateScoreHardMode
+updateShield:
+	li $t0, 1
+	sb $t0, shieldVisible
+	j updateScoreHardMode
+updateScoreHardMode:
 	lb $t0, hardMode
 	beq $t0, 0, hardModeCheck
 	bge $t1, 32, skipHardModeCheck
@@ -931,9 +984,9 @@ invincibleRemove:
 	jr $ra
 invincibleTimerTick:
 	lb $t1, invincibleCurrentTimer
-	subi $t1, $t1, -1
+	addiu $t1, $t1, -1 # subtraction unsigned for >128 ticks
 	sb $t1, invincibleCurrentTimer
-	ble $t1, 0, invincibleRemove
+	bleu $t1, 0, invincibleRemove # unsigned check
 	jr $ra
 detectEnemyCollision:
 	lb $t0, invincible
@@ -986,6 +1039,45 @@ detectEnemyCollisionIncrement:
 detectEnemyCollisionEnd:
 	jr $ra
 	
+undrawLifePrep:
+	lw $t1, grey
+	add $t2, $gp, 0 #t2 = draw address
+	lb $t3, extraLifeX # calculate offsets
+	mul $t3, $t3, 4
+	lb $t4, extraLifeY
+	mul $t4, $t4, 128 # 32*4
+	add $t2, $t2, $t3
+	add $t2, $t2, $t4
+	j undrawLife
+	
+undrawLife: # draw a cross
+	sw $t1, 4($t2)
+	sw $t1, 128($t2)
+	sw $t1, 132($t2)
+	sw $t1, 136($t2)
+	sw $t1, 260($t2)
+	jr $ra
+	
+undrawShieldPrep:
+	lw $t1, grey
+	add $t2, $gp, 0 #t2 = draw address
+	lb $t3, shieldX # calculate offsets
+	mul $t3, $t3, 4
+	lb $t4, shieldY
+	mul $t4, $t4, 128 # 32*4
+	add $t2, $t2, $t3
+	add $t2, $t2, $t4
+	j undrawShield
+undrawShield: # draw a shield
+	sw $t1, 0($t2)
+	sw $t1, 4($t2)
+	sw $t1, 8($t2)
+	sw $t1, 128($t2)
+	sw $t1, 132($t2)
+	sw $t1, 136($t2)
+	sw $t1, 260($t2)
+	jr $ra
+	
 detectItemCollision:
 	lb $t5, carX # player car X
 	lb $t7, carY # player car Y
@@ -1021,6 +1113,15 @@ detectLifeCollisionAct:
 	lb $t0, carLives
 	addi $t0, $t0, 1  # add a life
 	sb $t0, carLives
+	li $t0, 0
+	sb $t0, extraLifeVisible # remove powerup from field
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+	jal undrawLifePrep
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+
 
 detectShieldCollision:
 	lb $t0, shieldVisible
@@ -1054,8 +1155,16 @@ detectShieldCollisionAct:
 	# turn on invincible flag + timer
 	li $t0, 1 # invincible
 	sb $t0, invincible
-	lb $t0, invincibleTime
+	li $t0, 100 # 100 ticks
 	sb $t0, invincibleCurrentTimer
+	li $t0, 0
+	sb $t0, shieldVisible # remove powerup from field
+	
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+	jal undrawShieldPrep
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
 detectItemCollisionEnd:
 	jr $ra
 	
