@@ -76,8 +76,9 @@ maxCarSpeed: .byte 3
 defaultScore: .byte 0
 score: .byte 0
 currentColour: .word 0xff0000 # red, can become cyan when invincible
-invincible: .byte 0 # 1 if invincible
-invincibleTimer: .byte 0
+invincible: .byte 1 # 1 if invincible
+invincibleCurrentTimer: .byte 0
+invincibleTime: .byte 100 # 100 ticks
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
 enemyLength: .byte 2 # set to 4 if Hard Mode
@@ -100,6 +101,10 @@ initialize:
 	sb $t0, carSpeed
 	lb $t0, defaultScore
 	sb $t0, score
+	li $t0, 1 # invincible
+	sb $t0, invincible
+	lb $t0, invincibleTime
+	sb $t0, invincibleCurrentTimer
 	jal initializeEnemyCars
 	lb $t0, hardMode
 	beq $t0, 1, hardModeInitialize
@@ -255,7 +260,7 @@ getPlayerAddress: #obliterates t4, t5, t2
 
 	jr $ra
 
-playerPrep: 
+playerPrep:  # unused now
 	lw $t1, blue
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
@@ -450,8 +455,17 @@ playerTrailPrep: #clean up behind us by drawing grey
 	
 	jr $ra
 	
-redrawPlayerPrep: 
+redrawPlayerPrep:
+	lb $t0, invincible
+	beq $t0, 0, loadBlue
+	beq $t0, 1, loadCyan # draw as cyan if invincible
+loadCyan:
+	lw $t1, cyan
+	j redrawPlayerMain
+loadBlue:
 	lw $t1, blue
+	j redrawPlayerMain	
+redrawPlayerMain:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
 	jal getPlayerAddress
@@ -551,7 +565,7 @@ respond_to_x: #quit
 	
 updateCarLocationVertical:
 	lb $t2, carSpeed
-	beq $t2, 0, updateCarLocationEnd # dont need to update if not moving
+	#beq $t2, 0, updateCarLocationEnd # dont need to update if not moving
 updateCarLocationTrail:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp) # save old return address to stack 
@@ -629,6 +643,10 @@ resetCarPosition:
 	
 	# reset enemy cars? the old ones remain though
 	# add invincibility function probably and call it on respawn
+	li $t0, 1 # invincible
+	sb $t0, invincible
+	lb $t0, invincibleTime
+	sb $t0, invincibleCurrentTimer
 onCarHitEnd:
 	jr $ra
 	
@@ -894,7 +912,19 @@ hardModeActivate:
 	sb $t0, hardMode # set hard mode flag
 	j initialize # reinitialize
 	
+invincibleRemove:
+	li $t0, 0
+	sb $t0, invincible
+	jr $ra
+invincibleTimerTick:
+	lb $t1, invincibleCurrentTimer
+	subi $t1, $t1, -1
+	sb $t1, invincibleCurrentTimer
+	ble $t1, 0, invincibleRemove
+	jr $ra
 detectEnemyCollision:
+	lb $t0, invincible
+	beq $t0, 1, invincibleTimerTick # do not check for collision if invincible
 	lb $t3, enemyLength # number of cars to loop through
 	li $t8, 0 # loop incrementer
 	li $t6, 0 # loop +4 for each car
