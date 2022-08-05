@@ -57,7 +57,7 @@ dKey: .byte 100
 qKey: .byte 113
 xKey: .byte 120
 
-startingPositionX: .byte 16 # middle of screen
+startingPositionX: .byte 14 # middle of screen
 startingPositionY: .byte 28 # bottom of screen + 4 pixels for car height
 
 maxCarX: .byte 32
@@ -75,7 +75,9 @@ defaultCarSpeed: .byte 1
 maxCarSpeed: .byte 3
 defaultScore: .byte 0
 score: .byte 0
-
+currentColour: .word 0xff0000 # red, can become cyan when invincible
+invincible: .byte 0 # 1 if invincible
+invincibleTimer: .byte 0
 
 enemyCars: .space 16 #array of struct: current x, y positions, speed, direction (up/down)
 enemyLength: .byte 2 # set to 4 if Hard Mode
@@ -174,6 +176,7 @@ mainLoop:
 	jal checkInput
 	jal updateCarLocationVertical
 	jal updateEnemyCars
+	jal detectEnemyCollision
 	jal drawScreen
 	jal sleep1
 	j mainLoop
@@ -794,7 +797,7 @@ updateEnemyCars:
 	# update each car by their y value and direction and speed
 
 updateEnemyCarsLoop:
-	beq $t3, $t8, updateEnemyCarsEnd
+	bge $t8, $t3, updateEnemyCarsEnd
 	lb $t2, enemyCars($t6) # get x value
 	lb $t4, enemyCars+1($t6) # get  y value
 	lb $t5, enemyCars+2($t6) # get speed
@@ -890,6 +893,56 @@ hardModeActivate:
 	li $t0, 1
 	sb $t0, hardMode # set hard mode flag
 	j initialize # reinitialize
+	
+detectEnemyCollision:
+	lb $t3, enemyLength # number of cars to loop through
+	li $t8, 0 # loop incrementer
+	li $t6, 0 # loop +4 for each car
+	j detectEnemyCollisionLoop
+detectEnemyCollisionLoop:
+	bge $t8, $t3, detectEnemyCollisionEnd
+	lb $t2, enemyCars($t6) # get x value
+	lb $t4, enemyCars+1($t6) # get  y value
+	lb $t5, carX # player car X
+	lb $t7, carY # player car Y
+	# car widths: 3, car heights: 4
+	# if player Y is within 4 of enemy car and X is within 3 of enemy car 
+	# calc absolute value difference
+detectEnemyCollisionSubtractX:
+	bge $t2, $t5, subtractEnemyPlayerX # enemy > player
+	bge $t5, $t2, subtractPlayerEnemyX
+subtractEnemyPlayerX:
+	sub $t1, $t2, $t5 
+	j detectEnemyCollisionSubtractY
+subtractPlayerEnemyX:
+	sub $t1, $t5, $t2 # x diff
+	j detectEnemyCollisionSubtractY
+detectEnemyCollisionSubtractY:
+	bge $t4, $t7, subtractEnemyPlayerY # enemy > player
+	ble $t4, $t7, subtractPlayerEnemyY
+subtractEnemyPlayerY:
+	sub $t9, $t4, $t7 # y diff
+	j detectEnemyCollisionCompare
+subtractPlayerEnemyY:
+	sub $t9, $t7, $t4
+	j detectEnemyCollisionCompare
+detectEnemyCollisionCompare:
+	# check if x within 3 and y within 4
+	bgt $t1, 2, detectEnemyCollisionIncrement 
+	bgt $t9, 3, detectEnemyCollisionIncrement
+detectEnemyCollisionAct:
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+	jal onCarHit
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+detectEnemyCollisionIncrement:
+	addi $t8, $t8, 1
+	addi $t6, $t6, 4
+	j detectEnemyCollisionLoop
+detectEnemyCollisionEnd:
+	jr $ra
+
 	
 #idea
 # main loop
