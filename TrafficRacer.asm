@@ -5,22 +5,25 @@
 # Student Name: GARY CHEN, Student Number: 1007193065, UTorID: chengar6 
 # 
 # Bitmap Display Configuration: 
-# - Unit width in pixels: 8 (update this as needed) 
-# - Unit height in pixels: 8 (update this as needed) 
-# - Display width in pixels: 256 (update this as needed) 
-# - Display height in pixels: 256 (update this as needed) 
+# - Unit width in pixels: 8 
+# - Unit height in pixels: 8 
+# - Display width in pixels: 256 
+# - Display height in pixels: 256
 # - Base Address for Display: 0x10008000 ($gp)
 # 
 # Basic features that were implemented successfully 
 # - Basic feature a/b/c (choose the ones that apply) 
 # Implemented a (life counter), b (different cars with different speed), and c (game over screen)
-# 
+# All basic features implemented
+#
 # Additional features that were implemented successfully 
 # - Additional feature a/b/c (choose the ones that apply) 
 # Implemented a (pickups), b (live score bar) and c (hard mode level)
+# All additional features implemented
 #  
 # Link to the video demo 
 # - Insert YouTube/MyMedia/other URL here and make sure the video is accessible 
+# YouTube Link: https://www.youtube.com/watch?v=LWAQZ2jVJTg
 # 
 # Any additional information that the TA needs to know: 
 # - Write here, if any 
